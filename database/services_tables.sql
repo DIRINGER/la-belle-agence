@@ -39,12 +39,15 @@ CREATE TABLE IF NOT EXISTS conges (
 
 CREATE TABLE IF NOT EXISTS formations (
   id              SERIAL PRIMARY KEY,
-  salarie_nom     VARCHAR(200) NOT NULL,
+  salarie_nom     VARCHAR(200) NOT NULL,           -- même liaison que cartes_professionnelles
   intitule        VARCHAR(255) NOT NULL,
   organisme       VARCHAR(200),
   date_formation  DATE,
   duree_heures    NUMERIC(6,2),
-  type_formation  VARCHAR(50) DEFAULT 'facultatif',  -- 'DDA', 'obligatoire', 'facultatif'
+  type_formation  VARCHAR(50) DEFAULT 'facultatif'  -- 'DDA', 'obligatoire', 'facultatif'
+    CHECK (type_formation IN ('DDA', 'obligatoire', 'facultatif')),
+  statut          VARCHAR(50) DEFAULT 'validée'    -- 'validée' | 'en cours' | 'à planifier' | 'expirée'
+    CHECK (statut IN ('validée', 'en cours', 'à planifier', 'expirée')),
   certificat_url  TEXT,
   created_at      TIMESTAMP DEFAULT NOW()
 );
@@ -74,11 +77,14 @@ CREATE TABLE IF NOT EXISTS cartes_professionnelles (
 
 CREATE TABLE IF NOT EXISTS assurances_rc (
   id               SERIAL PRIMARY KEY,
+  salarie_nom      VARCHAR(200) NOT NULL,         -- même liaison que cartes_professionnelles
   compagnie        VARCHAR(200) NOT NULL,
   numero_police    VARCHAR(100),
   montant_garantie NUMERIC(14,2),
   date_debut       DATE,
   date_fin         DATE,
+  statut           VARCHAR(50) DEFAULT 'valide'   -- 'valide' | 'expiré' | 'en renouvellement'
+    CHECK (statut IN ('valide', 'expiré', 'en renouvellement')),
   created_at       TIMESTAMP DEFAULT NOW()
 );
 
