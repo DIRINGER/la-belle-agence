@@ -15,6 +15,9 @@ function App() {
   const [afficherIndice, setAfficherIndice]   = useState(false);
   const [afficherCorrection, setAfficherCorrection] = useState(false);
   const [reponseTexte, setReponseTexte]       = useState('');
+  const [reponseLien, setReponseLien]         = useState('');
+  const [reponseFichierUrl, setReponseFichierUrl] = useState('');
+  const [uploadingReponse, setUploadingReponse] = useState(false);
   const [sauvegarde, setSauvegarde]           = useState(null);
   const [templatesMission, setTemplatesMission] = useState([]);
 
@@ -73,6 +76,23 @@ function App() {
     } else {
       setTemplatesMission([]);
     }
+  }, [missionEnCours]);
+
+  // Charger la réponse de l'élève quand une mission est ouverte
+  useEffect(() => {
+    if (!missionEnCours || !utilisateur) return;
+    async function chargerReponse() {
+      const { data } = await supabase
+        .from('reponses_eleves')
+        .select('*')
+        .eq('mission_id', missionEnCours.id)
+        .eq('eleve_nom', utilisateur)
+        .maybeSingle();
+      setReponseTexte(data?.reponse_texte || '');
+      setReponseLien(data?.lien_url || '');
+      setReponseFichierUrl(data?.fichier_url || '');
+    }
+    chargerReponse();
   }, [missionEnCours]);
 
   // ERP pour le professeur
@@ -163,11 +183,34 @@ function App() {
 
     async function sauvegarderReponse() {
       const { error } = await supabase
-        .from('missions')
-        .update({ reponse_eleve: reponseTexte })
-        .eq('id', missionEnCours.id);
+        .from('reponses_eleves')
+        .upsert({
+          mission_id:    missionEnCours.id,
+          eleve_nom:     utilisateur,
+          reponse_texte: reponseTexte || null,
+          lien_url:      reponseLien || null,
+          fichier_url:   reponseFichierUrl || null,
+          updated_at:    new Date().toISOString(),
+        }, { onConflict: 'mission_id,eleve_nom' });
       setSauvegarde(error ? 'erreur' : 'ok');
       setTimeout(() => setSauvegarde(null), 3000);
+    }
+
+    async function uploaderFichier(e) {
+      const fichier = e.target.files?.[0];
+      if (!fichier) return;
+      setUploadingReponse(true);
+      const nom = `${utilisateur}_m${missionEnCours.id}_${Date.now()}_${fichier.name}`;
+      const { error } = await supabase.storage
+        .from('reponses-eleves')
+        .upload(nom, fichier, { upsert: true });
+      if (!error) {
+        const { data: urlData } = supabase.storage
+          .from('reponses-eleves')
+          .getPublicUrl(nom);
+        setReponseFichierUrl(urlData.publicUrl);
+      }
+      setUploadingReponse(false);
     }
 
     // Affichage récursif des données JSON
@@ -240,6 +283,8 @@ function App() {
             setAfficherIndice(false);
             setAfficherCorrection(false);
             setReponseTexte('');
+            setReponseLien('');
+            setReponseFichierUrl('');
           }}
           style={{ padding: '10px 20px', cursor: 'pointer', marginBottom: '20px' }}
         >
@@ -338,22 +383,69 @@ function App() {
 
           {ongletMission === 'reponse' && (
             <div>
-              <p style={{ color: '#374151', marginBottom: '10px' }}>Rédigez votre réponse ci-dessous :</p>
-              <textarea
-                value={reponseTexte}
-                onChange={(e) => setReponseTexte(e.target.value)}
-                placeholder="Écrivez votre réponse ici…"
-                style={{ width: '100%', minHeight: '200px', padding: '14px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '15px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }}
-              />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '12px' }}>
+              {/* Section 1 — Texte */}
+              <div style={{ marginBottom: '22px' }}>
+                <h4 style={{ margin: '0 0 8px', color: '#374151' }}>✍️ Votre réponse rédigée</h4>
+                <textarea
+                  value={reponseTexte}
+                  onChange={(e) => setReponseTexte(e.target.value)}
+                  placeholder="Écrivez votre réponse ici…"
+                  style={{ width: '100%', minHeight: '200px', padding: '14px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '15px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }}
+                />
+              </div>
+
+              {/* Section 2 — Lien URL */}
+              <div style={{ marginBottom: '22px' }}>
+                <h4 style={{ margin: '0 0 8px', color: '#374151' }}>🔗 Lien (Google Doc, site, Drive…)</h4>
+                <input
+                  type="url"
+                  value={reponseLien}
+                  onChange={(e) => setReponseLien(e.target.value)}
+                  placeholder="https://docs.google.com/…"
+                  style={{ width: '100%', padding: '10px 14px', border: '1px solid #CBD5E1', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              {/* Section 3 — Pièce jointe */}
+              <div style={{ marginBottom: '22px' }}>
+                <h4 style={{ margin: '0 0 8px', color: '#374151' }}>📎 Pièce jointe (PDF, Word, image)</h4>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={uploaderFichier}
+                  disabled={uploadingReponse}
+                  style={{ fontSize: '14px' }}
+                />
+                {uploadingReponse && (
+                  <span style={{ marginLeft: '10px', color: '#6B7280', fontSize: '13px' }}>Envoi en cours…</span>
+                )}
+                {reponseFichierUrl && !uploadingReponse && (
+                  <div style={{ marginTop: '8px' }}>
+                    <a href={reponseFichierUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ color: '#1E3A8A', fontSize: '13px', textDecoration: 'underline' }}>
+                      📄 Fichier joint — voir
+                    </a>
+                    <button
+                      onClick={() => setReponseFichierUrl('')}
+                      style={{ marginLeft: '12px', background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '13px' }}
+                    >
+                      ✕ Retirer
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Bouton sauvegarde */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <button
                   onClick={sauvegarderReponse}
-                  style={{ padding: '12px 24px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: '600' }}
+                  disabled={uploadingReponse}
+                  style={{ padding: '12px 24px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: uploadingReponse ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '600', opacity: uploadingReponse ? 0.6 : 1 }}
                 >
                   💾 Sauvegarder
                 </button>
-                {sauvegarde === 'ok'    && <span style={{ color: '#059669', fontWeight: '600' }}>✅ Réponse sauvegardée !</span>}
-                {sauvegarde === 'erreur'&& <span style={{ color: '#DC2626', fontWeight: '600' }}>❌ Erreur lors de la sauvegarde.</span>}
+                {sauvegarde === 'ok'     && <span style={{ color: '#059669', fontWeight: '600' }}>✅ Réponse sauvegardée !</span>}
+                {sauvegarde === 'erreur' && <span style={{ color: '#DC2626', fontWeight: '600' }}>❌ Erreur lors de la sauvegarde.</span>}
               </div>
             </div>
           )}
@@ -430,7 +522,9 @@ function App() {
                   setOngletMission('donnees');
                   setAfficherIndice(false);
                   setAfficherCorrection(false);
-                  setReponseTexte(mission.reponse_eleve || '');
+                  setReponseTexte('');
+                  setReponseLien('');
+                  setReponseFichierUrl('');
                 }}
                 style={{ padding: '10px 20px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
               >
