@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import ERPServices from './components/erp/ERPServices';
 
+const PIN_PROF = '2026'; // code simple pour protéger l'accès Prof et les corrections — change-le si tu veux
+
 function App() {
   const [utilisateur, setUtilisateur]         = useState(null);
   const [roleChoisi, setRoleChoisi]           = useState(null);
@@ -10,7 +12,6 @@ function App() {
   const [missionEnCours, setMissionEnCours]   = useState(null);
   const [afficherERP, setAfficherERP]         = useState(false);
 
-  // État détail mission
   const [ongletMission, setOngletMission]     = useState('donnees');
   const [afficherIndice, setAfficherIndice]   = useState(false);
   const [afficherCorrection, setAfficherCorrection] = useState(false);
@@ -33,7 +34,14 @@ function App() {
     'Léonit RUKOVCI', 'Emma SCHULL', 'Lorik SYLEJMANI', 'Darine ZELLAGUI'
   ];
 
-  // Charger les rôles au démarrage
+  function choisirUtilisateur(nom) {
+    if (nom === 'Christophe DIRINGER (Prof)') {
+      const code = window.prompt('Code PIN professeur :');
+      if (code !== PIN_PROF) { window.alert('Code incorrect.'); return; }
+    }
+    setUtilisateur(nom);
+  }
+
   useEffect(() => {
     async function chargerRoles() {
       const { data, error } = await supabase
@@ -46,7 +54,6 @@ function App() {
     chargerRoles();
   }, []);
 
-  // Charger les missions quand un rôle est choisi
   useEffect(() => {
     if (roleChoisi) {
       async function chargerMissions() {
@@ -54,7 +61,8 @@ function App() {
           .from('missions')
           .select('*')
           .eq('profil_code', roleChoisi.code)
-          .limit(5);
+          .order('titre')
+          .limit(50);
         if (error) { console.error('Erreur chargement missions:', error); }
         else { setMissions(data || []); }
       }
@@ -62,7 +70,6 @@ function App() {
     }
   }, [roleChoisi]);
 
-  // Charger les templates quand une mission est ouverte
   useEffect(() => {
     if (missionEnCours?.service) {
       async function chargerTemplates() {
@@ -78,7 +85,6 @@ function App() {
     }
   }, [missionEnCours]);
 
-  // Charger la réponse de l'élève quand une mission est ouverte
   useEffect(() => {
     if (!missionEnCours || !utilisateur) return;
     async function chargerReponse() {
@@ -95,7 +101,6 @@ function App() {
     chargerReponse();
   }, [missionEnCours]);
 
-  // ERP pour le professeur
   if (utilisateur === 'Christophe DIRINGER (Prof)') {
     return <ERPServices onRetour={() => setUtilisateur(null)} />;
   }
@@ -117,7 +122,6 @@ function App() {
     </button>
   );
 
-  // Page 1 : Sélection utilisateur
   if (!utilisateur) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -127,7 +131,7 @@ function App() {
           {eleves.map((nom, index) => (
             <button
               key={index}
-              onClick={() => setUtilisateur(nom)}
+              onClick={() => choisirUtilisateur(nom)}
               style={{ padding: '20px', fontSize: '16px', cursor: 'pointer', border: '2px solid #1E3A8A', borderRadius: '8px', background: 'white', transition: 'all 0.3s' }}
               onMouseOver={(e) => e.target.style.background = '#E0E7FF'}
               onMouseOut={(e) => e.target.style.background = 'white'}
@@ -141,7 +145,6 @@ function App() {
     );
   }
 
-  // Page 2 : Choix du rôle
   if (!roleChoisi) {
     return (
       <div style={{ padding: '40px' }}>
@@ -170,7 +173,6 @@ function App() {
     );
   }
 
-  // Page 4 : Détail d'une mission — 6 onglets
   if (missionEnCours) {
     const onglets = [
       { id: 'donnees',    label: '📊 Données' },
@@ -213,7 +215,14 @@ function App() {
       setUploadingReponse(false);
     }
 
-    // Affichage récursif des données JSON
+    function reveleCorrection() {
+      if (!afficherCorrection) {
+        const code = window.prompt('Code PIN professeur pour révéler la correction :');
+        if (code !== PIN_PROF) { window.alert('Code incorrect.'); return; }
+      }
+      setAfficherCorrection(!afficherCorrection);
+    }
+
     function renderDonnees(data, niveau = 0) {
       if (!data || typeof data !== 'object') {
         return <span>{String(data)}</span>;
@@ -235,7 +244,6 @@ function App() {
           <div style={{ overflowX: 'auto' }}>
             {entries.map(([cle, val]) => {
               if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
-                // Table de données
                 const cols = Object.keys(val[0]);
                 return (
                   <div key={cle} style={{ marginBottom: '24px' }}>
@@ -304,7 +312,6 @@ function App() {
             <p style={{ whiteSpace: 'pre-wrap' }}>{missionEnCours.instructions}</p>
           </div>
 
-          {/* Barre d'onglets */}
           <div style={{ display: 'flex', flexWrap: 'wrap', borderBottom: '2px solid #D1D5DB', marginBottom: '20px' }}>
             {onglets.map(o => (
               <button
@@ -323,7 +330,6 @@ function App() {
             ))}
           </div>
 
-          {/* Contenu des onglets */}
           {ongletMission === 'donnees' && (
             <div>
               {missionEnCours.donnees_exercice && Object.keys(missionEnCours.donnees_exercice).length > 0
@@ -383,7 +389,6 @@ function App() {
 
           {ongletMission === 'reponse' && (
             <div>
-              {/* Section 1 — Texte */}
               <div style={{ marginBottom: '22px' }}>
                 <h4 style={{ margin: '0 0 8px', color: '#374151' }}>✍️ Votre réponse rédigée</h4>
                 <textarea
@@ -394,7 +399,6 @@ function App() {
                 />
               </div>
 
-              {/* Section 2 — Lien URL */}
               <div style={{ marginBottom: '22px' }}>
                 <h4 style={{ margin: '0 0 8px', color: '#374151' }}>🔗 Lien (Google Doc, site, Drive…)</h4>
                 <input
@@ -406,7 +410,6 @@ function App() {
                 />
               </div>
 
-              {/* Section 3 — Pièce jointe */}
               <div style={{ marginBottom: '22px' }}>
                 <h4 style={{ margin: '0 0 8px', color: '#374151' }}>📎 Pièce jointe (PDF, Word, image)</h4>
                 <input
@@ -435,7 +438,6 @@ function App() {
                 )}
               </div>
 
-              {/* Bouton sauvegarde */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                 <button
                   onClick={sauvegarderReponse}
@@ -472,10 +474,10 @@ function App() {
           {ongletMission === 'correction' && (
             <div>
               <button
-                onClick={() => setAfficherCorrection(!afficherCorrection)}
+                onClick={reveleCorrection}
                 style={{ padding: '13px 26px', background: '#059669', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '15px' }}
               >
-                📖 {afficherCorrection ? 'Masquer' : 'Révéler'} la correction
+                📖 {afficherCorrection ? 'Masquer' : 'Révéler'} la correction (code Prof requis)
               </button>
               {afficherCorrection && missionEnCours.correction_detaillee && (
                 <div style={{ marginTop: '16px', background: '#D1FAE5', padding: '18px', borderRadius: '8px', border: '2px solid #059669' }}>
@@ -493,7 +495,6 @@ function App() {
     );
   }
 
-  // Page 3 : Liste des missions
   return (
     <div style={{ padding: '40px' }}>
       <div style={{ background: '#1E3A8A', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '30px' }}>
