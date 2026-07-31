@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import ERPServices from './components/erp/ERPServices';
+import RevisionQuiz from './RevisionQuiz';
 
 const PIN_PROF = '2026'; // code simple pour protéger l'accès Prof et les corrections — change-le si tu veux
 
@@ -11,6 +12,7 @@ function App() {
   const [missions, setMissions]               = useState([]);
   const [missionEnCours, setMissionEnCours]   = useState(null);
   const [afficherERP, setAfficherERP]         = useState(false);
+  const [afficherRevision, setAfficherRevision] = useState(false);
 
   const [ongletMission, setOngletMission]     = useState('donnees');
   const [afficherIndice, setAfficherIndice]   = useState(false);
@@ -101,11 +103,24 @@ function App() {
     chargerReponse();
   }, [missionEnCours]);
 
+  // ERP / Révisions pour le professeur
   if (utilisateur === 'Christophe DIRINGER (Prof)') {
-    return <ERPServices onRetour={() => setUtilisateur(null)} />;
+    if (afficherRevision) return <RevisionQuiz utilisateur={utilisateur} estProf={true} onRetour={() => setAfficherRevision(false)} />;
+    if (afficherERP) return <ERPServices onRetour={() => setAfficherERP(false)} />;
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h1 style={{ color: '#1E3A8A' }}>Bonjour Christophe 👋</h1>
+        <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px', flexWrap: 'wrap' }}>
+          <button onClick={() => setAfficherERP(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#1E3A8A', color: 'white', border: 'none', borderRadius: '8px' }}>🗂️ Accéder à l'ERP</button>
+          <button onClick={() => setAfficherRevision(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#059669', color: 'white', border: 'none', borderRadius: '8px' }}>📚 Tableau de bord Révisions</button>
+        </div>
+        <button onClick={() => setUtilisateur(null)} style={{ padding: '10px 20px', marginTop: '20px', cursor: 'pointer' }}>← Changer d'utilisateur</button>
+      </div>
+    );
   }
 
   if (afficherERP) return <ERPServices onRetour={() => setAfficherERP(false)} />;
+  if (afficherRevision) return <RevisionQuiz utilisateur={utilisateur} estProf={false} onRetour={() => setAfficherRevision(false)} />;
 
   const btnERP = (
     <button
@@ -119,6 +134,21 @@ function App() {
       }}
     >
       🗂️ ERP
+    </button>
+  );
+
+  const btnRevision = (
+    <button
+      onClick={() => setAfficherRevision(true)}
+      style={{
+        position: 'fixed', bottom: '24px', right: '110px',
+        padding: '14px 22px', background: '#059669', color: 'white',
+        border: 'none', borderRadius: '50px', cursor: 'pointer',
+        fontSize: '15px', fontWeight: '700',
+        boxShadow: '0 4px 15px rgba(5,150,105,0.4)', zIndex: 1000,
+      }}
+    >
+      📚 Réviser
     </button>
   );
 
@@ -169,6 +199,7 @@ function App() {
           ))}
         </div>
         {btnERP}
+        {btnRevision}
       </div>
     );
   }
@@ -491,6 +522,7 @@ function App() {
           )}
         </div>
         {btnERP}
+        {btnRevision}
       </div>
     );
   }
@@ -536,6 +568,7 @@ function App() {
         </div>
       )}
       {btnERP}
+      {btnRevision}
     </div>
   );
 }
