@@ -4,6 +4,9 @@ import ERPServices from './components/erp/ERPServices';
 import RevisionQuiz from './RevisionQuiz';
 import RoueOrale from './RoueOrale';
 import MonAgence from './MonAgence';
+import SaisieNotes from './SaisieNotes';
+import MesNotes from './MesNotes';
+import Progression from './Progression';
 import { lancerConfettis } from './confetti';
 
 const PIN_PROF = '2026'; // code simple pour protéger l'accès Prof et les corrections — change-le si tu veux
@@ -18,6 +21,9 @@ function App() {
   const [afficherRevision, setAfficherRevision] = useState(false);
   const [afficherRoue, setAfficherRoue]       = useState(false);
   const [afficherAgence, setAfficherAgence]   = useState(false);
+  const [afficherNotesProf, setAfficherNotesProf] = useState(false);
+  const [afficherMesNotes, setAfficherMesNotes] = useState(false);
+  const [afficherProgression, setAfficherProgression] = useState(false);
 
   const [ongletMission, setOngletMission]     = useState('donnees');
   const [afficherIndice, setAfficherIndice]   = useState(false);
@@ -141,6 +147,8 @@ function App() {
   if (utilisateur === 'Christophe DIRINGER (Prof)') {
     if (afficherRevision) return <RevisionQuiz utilisateur={utilisateur} estProf={true} onRetour={() => setAfficherRevision(false)} />;
     if (afficherRoue) return <RoueOrale onRetour={() => setAfficherRoue(false)} />;
+    if (afficherNotesProf) return <SaisieNotes onRetour={() => setAfficherNotesProf(false)} />;
+    if (afficherProgression) return <Progression onRetour={() => setAfficherProgression(false)} />;
     if (afficherERP) return <ERPServices onRetour={() => setAfficherERP(false)} />;
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -149,6 +157,8 @@ function App() {
           <button onClick={() => setAfficherERP(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#1E3A8A', color: 'white', border: 'none', borderRadius: '8px' }}>🗂️ Accéder à l'ERP</button>
           <button onClick={() => setAfficherRevision(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#059669', color: 'white', border: 'none', borderRadius: '8px' }}>📚 Tableau de bord Révisions</button>
           <button onClick={() => setAfficherRoue(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#DC2626', color: 'white', border: 'none', borderRadius: '8px' }}>🎡 Roue à l'oral</button>
+          <button onClick={() => setAfficherNotesProf(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#7C3AED', color: 'white', border: 'none', borderRadius: '8px' }}>📝 Notes & compétences</button>
+          <button onClick={() => setAfficherProgression(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#0D9488', color: 'white', border: 'none', borderRadius: '8px' }}>📅 Progression de l'année</button>
         </div>
         <button onClick={() => setUtilisateur(null)} style={{ padding: '10px 20px', marginTop: '20px', cursor: 'pointer' }}>← Changer d'utilisateur</button>
       </div>
@@ -158,6 +168,8 @@ function App() {
   if (afficherERP) return <ERPServices onRetour={() => setAfficherERP(false)} />;
   if (afficherRevision) return <RevisionQuiz utilisateur={utilisateur} estProf={false} onRetour={() => setAfficherRevision(false)} />;
   if (afficherAgence) return <MonAgence utilisateur={utilisateur} onRetour={() => setAfficherAgence(false)} />;
+  if (afficherMesNotes) return <MesNotes utilisateur={utilisateur} onRetour={() => setAfficherMesNotes(false)} />;
+  if (afficherProgression) return <Progression onRetour={() => setAfficherProgression(false)} />;
 
   const btnERP = (
     <button
@@ -201,6 +213,36 @@ function App() {
       }}
     >
       🏢 Mon agence
+    </button>
+  );
+
+  const btnMesNotes = (
+    <button
+      onClick={() => setAfficherMesNotes(true)}
+      style={{
+        position: 'fixed', bottom: '24px', right: '300px',
+        padding: '14px 22px', background: '#DC2626', color: 'white',
+        border: 'none', borderRadius: '50px', cursor: 'pointer',
+        fontSize: '15px', fontWeight: '700',
+        boxShadow: '0 4px 15px rgba(220,38,38,0.4)', zIndex: 1000,
+      }}
+    >
+      📊 Mes notes
+    </button>
+  );
+
+  const btnProgression = (
+    <button
+      onClick={() => setAfficherProgression(true)}
+      style={{
+        position: 'fixed', bottom: '24px', right: '404px',
+        padding: '14px 22px', background: '#0D9488', color: 'white',
+        border: 'none', borderRadius: '50px', cursor: 'pointer',
+        fontSize: '15px', fontWeight: '700',
+        boxShadow: '0 4px 15px rgba(13,148,136,0.4)', zIndex: 1000,
+      }}
+    >
+      📅 Programme
     </button>
   );
 
@@ -295,6 +337,8 @@ function App() {
         {btnERP}
         {btnRevision}
         {btnAgence}
+        {btnMesNotes}
+        {btnProgression}
       </div>
     );
   }
@@ -323,6 +367,27 @@ function App() {
       setSauvegarde(error ? 'erreur' : 'ok');
       if (!error) lancerConfettis();
       setTimeout(() => setSauvegarde(null), 3000);
+    }
+
+    function imprimerPourClasseur() {
+      const fenetre = window.open('', '_blank');
+      const contenu = `
+        <html><head><title>${missionEnCours.titre} — ${utilisateur}</title>
+        <style>body{font-family:sans-serif;padding:40px;} h1{color:#1E3A8A;} h2{margin-top:28px;color:#1E3A8A;} .bloc{white-space:pre-wrap;margin-bottom:20px;}</style>
+        </head><body>
+        <h1>${missionEnCours.titre}</h1>
+        <p><strong>Élève :</strong> ${utilisateur} — <strong>Date d'impression :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
+        ${missionEnCours.rappel_cours ? `<h2>Rappel de cours</h2><div class="bloc">${missionEnCours.rappel_cours}</div>` : ''}
+        <h2>Contexte</h2><div class="bloc">${missionEnCours.contexte || ''}</div>
+        <h2>Instructions</h2><div class="bloc">${missionEnCours.instructions || ''}</div>
+        <h2>Ma réponse</h2><div class="bloc">${reponseTexte || '(voir lien ou fichier joint ci-dessous)'}</div>
+        ${reponseLien ? `<p><strong>Lien :</strong> ${reponseLien}</p>` : ''}
+        ${reponseFichierUrl ? `<p><strong>Fichier joint :</strong> ${reponseFichierUrl}</p>` : ''}
+        </body></html>`;
+      fenetre.document.write(contenu);
+      fenetre.document.close();
+      fenetre.focus();
+      setTimeout(() => fenetre.print(), 300);
     }
 
     async function uploaderFichier(e) {
@@ -429,6 +494,13 @@ function App() {
         <div style={{ background: '#F3F4F6', padding: '28px', borderRadius: '12px' }}>
           <h1 style={{ marginTop: 0 }}>{missionEnCours.titre}</h1>
           <p><strong>Difficulté :</strong> {missionEnCours.difficulte} • <strong>Durée :</strong> {missionEnCours.duree_minutes} min</p>
+
+          {missionEnCours.rappel_cours && (
+            <div style={{ marginBottom: '20px', background: '#EFF6FF', border: '1px solid #1E3A8A', borderRadius: '8px', padding: '16px' }}>
+              <h3 style={{ marginTop: 0 }}>📖 Rappel de cours</h3>
+              <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{missionEnCours.rappel_cours}</p>
+            </div>
+          )}
 
           <div style={{ marginBottom: '20px' }}>
             <h3>📋 Contexte</h3>
@@ -576,6 +648,17 @@ function App() {
                 {sauvegarde === 'ok'     && <span style={{ color: '#059669', fontWeight: '600' }}>✅ Réponse sauvegardée !</span>}
                 {sauvegarde === 'erreur' && <span style={{ color: '#DC2626', fontWeight: '600' }}>❌ Erreur lors de la sauvegarde.</span>}
               </div>
+              {missionEnCours.notee && (
+                <div style={{ marginTop: '18px' }}>
+                  <button
+                    onClick={imprimerPourClasseur}
+                    style={{ padding: '10px 20px', background: '#1E3A8A', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}
+                  >
+                    🖨️ Imprimer le sujet et ma réponse (classeur)
+                  </button>
+                  <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '6px' }}>Cette mission compte pour l'évaluation continue — imprime et classe cette page dans ton classeur.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -620,6 +703,8 @@ function App() {
         {btnERP}
         {btnRevision}
         {btnAgence}
+        {btnMesNotes}
+        {btnProgression}
       </div>
     );
   }
@@ -667,6 +752,8 @@ function App() {
       {btnERP}
       {btnRevision}
       {btnAgence}
+      {btnMesNotes}
+      {btnProgression}
     </div>
   );
 }
