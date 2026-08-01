@@ -24,24 +24,41 @@ function App() {
   const [sauvegarde, setSauvegarde]           = useState(null);
   const [templatesMission, setTemplatesMission] = useState([]);
 
-  const eleves = [
-    'Christophe DIRINGER (Prof)',
-    'Anisa ADEMAJ', 'Tiago AFONSO', 'Sofia ARRADI', 'Melisa ARSLANFER',
-    'Imene BAHROUME', 'Meline BRETINIER', 'Alessandra CARDIA',
-    'Leonor CARVALHO MARQUES', 'Ana Beatriz DA SILVA COSTA',
-    'Eve DI GRAZIA-DIEDA', 'Farah EL AZIZ', 'Leonardo FERREIRIA',
-    'Maxim GUILLOT', 'Mirsada GUSANII', 'Jon HALILI',
-    'Aya HAMMENA', 'Rawda KOCAASLAN', 'Belen KUL',
-    'Romane LAUFFENBURGER', 'Caroline RODRIGUES EIRAO',
-    'Léonit RUKOVCI', 'Emma SCHULL', 'Lorik SYLEJMANI', 'Darine ZELLAGUI'
-  ];
+  const [elevesRoster, setElevesRoster]       = useState([]);
+  const [afficherChangementPin, setAfficherChangementPin] = useState(false);
+  const [nouveauPin, setNouveauPin]           = useState('');
+  const [messagePin, setMessagePin]           = useState(null);
 
   function choisirUtilisateur(nom) {
     if (nom === 'Christophe DIRINGER (Prof)') {
       const code = window.prompt('Code PIN professeur :');
       if (code !== PIN_PROF) { window.alert('Code incorrect.'); return; }
+      setUtilisateur(nom);
+      return;
     }
+    const eleve = elevesRoster.find(e => e.nom === nom);
+    if (!eleve) { window.alert("Élève introuvable — réessaie dans un instant."); return; }
+    const code = window.prompt(`Code PIN de ${nom} :`);
+    if (code !== eleve.pin) { window.alert('Code incorrect.'); return; }
     setUtilisateur(nom);
+  }
+
+  async function changerMonCode() {
+    if (!/^\d{4}$/.test(nouveauPin)) {
+      setMessagePin('❌ Le code doit contenir exactement 4 chiffres.');
+      return;
+    }
+    const eleve = elevesRoster.find(e => e.nom === utilisateur);
+    if (!eleve) { setMessagePin('❌ Élève introuvable.'); return; }
+    const { error } = await supabase.from('eleves_roster').update({ pin: nouveauPin }).eq('id', eleve.id);
+    if (error) {
+      setMessagePin('❌ Erreur : ' + error.message);
+    } else {
+      setMessagePin('✅ Code PIN mis à jour !');
+      setElevesRoster(prev => prev.map(e => e.id === eleve.id ? { ...e, pin: nouveauPin } : e));
+      setNouveauPin('');
+      setAfficherChangementPin(false);
+    }
   }
 
   useEffect(() => {
@@ -54,6 +71,18 @@ function App() {
       else { setRoles(data || []); }
     }
     chargerRoles();
+  }, []);
+
+  useEffect(() => {
+    async function chargerElevesRoster() {
+      const { data, error } = await supabase
+        .from('eleves_roster')
+        .select('*')
+        .order('nom');
+      if (error) { console.error('Erreur chargement élèves:', error); }
+      else { setElevesRoster(data || []); }
+    }
+    chargerElevesRoster();
   }, []);
 
   useEffect(() => {
@@ -158,17 +187,23 @@ function App() {
         <h1 style={{ color: '#1E3A8A' }}>🏢 LA BELLE AGENCE</h1>
         <h2>Qui êtes-vous ?</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px', maxWidth: '1200px', margin: '40px auto' }}>
-          {eleves.map((nom, index) => (
+          {elevesRoster.map((eleve) => (
             <button
-              key={index}
-              onClick={() => choisirUtilisateur(nom)}
+              key={eleve.id}
+              onClick={() => choisirUtilisateur(eleve.nom)}
               style={{ padding: '20px', fontSize: '16px', cursor: 'pointer', border: '2px solid #1E3A8A', borderRadius: '8px', background: 'white', transition: 'all 0.3s' }}
               onMouseOver={(e) => e.target.style.background = '#E0E7FF'}
               onMouseOut={(e) => e.target.style.background = 'white'}
             >
-              {nom}
+              {eleve.nom}
             </button>
           ))}
+          <button
+            onClick={() => choisirUtilisateur('Christophe DIRINGER (Prof)')}
+            style={{ padding: '20px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', border: '2px solid #F59E0B', borderRadius: '8px', background: '#FEF3C7', transition: 'all 0.3s' }}
+          >
+            Christophe DIRINGER (Prof)
+          </button>
         </div>
         {btnERP}
       </div>
@@ -184,6 +219,42 @@ function App() {
           <button onClick={() => setUtilisateur(null)} style={{ padding: '10px 20px', marginTop: '20px', cursor: 'pointer' }}>
             ← Changer d'utilisateur
           </button>
+
+          <div style={{ marginTop: '16px' }}>
+            {!afficherChangementPin ? (
+              <button
+                onClick={() => { setAfficherChangementPin(true); setMessagePin(null); }}
+                style={{ padding: '8px 16px', fontSize: '13px', cursor: 'pointer', background: 'none', border: '1px solid #CBD5E1', borderRadius: '6px' }}
+              >
+                🔑 Changer mon code PIN
+              </button>
+            ) : (
+              <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={nouveauPin}
+                  onChange={(e) => setNouveauPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Nouveau code (4 chiffres)"
+                  style={{ padding: '8px', width: '180px', border: '1px solid #CBD5E1', borderRadius: '6px' }}
+                />
+                <button onClick={changerMonCode} style={{ padding: '8px 16px', cursor: 'pointer', background: '#059669', color: 'white', border: 'none', borderRadius: '6px' }}>
+                  Valider
+                </button>
+                <button
+                  onClick={() => { setAfficherChangementPin(false); setNouveauPin(''); setMessagePin(null); }}
+                  style={{ padding: '8px 16px', cursor: 'pointer', background: 'none', border: '1px solid #CBD5E1', borderRadius: '6px' }}
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+            {messagePin && (
+              <p style={{ fontSize: '13px', marginTop: '8px', color: messagePin.startsWith('✅') ? '#059669' : '#DC2626' }}>
+                {messagePin}
+              </p>
+            )}
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', maxWidth: '1200px', margin: '0 auto' }}>
           {roles.map((role) => (
