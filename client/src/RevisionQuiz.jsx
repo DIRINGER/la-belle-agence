@@ -31,6 +31,8 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
   const [jokerEnvoye, setJokerEnvoye] = useState(false);
 
   const [statsProf, setStatsProf] = useState(null);
+  const [elevesRoster, setElevesRoster] = useState([]);
+  const [pinRegenere, setPinRegenere] = useState({});
 
   useEffect(() => {
     if (estProf) {
@@ -253,6 +255,7 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
     const { data: progressionAll } = await supabase.from('revision_theme_progress').select('*');
     const { data: param } = await supabase.from('revision_parametres').select('*').eq('cle', 'nb_eleves_classe').maybeSingle();
     const { data: paliersRecompense } = await supabase.from('revision_recompense_paliers').select('*').order('seuil_pourcent', { ascending: false });
+    const { data: roster } = await supabase.from('eleves_roster').select('*').order('nom');
 
     const debutSemaine = new Date();
     const jour = debutSemaine.getDay() || 7;
@@ -301,6 +304,7 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
     });
     const palierAtteint = (paliersRecompense || []).find(p => meilleurPourcentage >= p.seuil_pourcent) || null;
 
+    setElevesRoster(roster || []);
     setStatsProf({
       themesAvecStats,
       nbElevesAyantMaitriseCetteSemaine: [...new Set((maitrisesSemaine || []).map(m => m.student_id))].length,
@@ -311,6 +315,15 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
       paliersRecompense: paliersRecompense || [],
     });
     setChargement(false);
+  }
+
+  async function regenererPin(eleve) {
+    const nouveau = String(Math.floor(1000 + Math.random() * 9000));
+    const { error } = await supabase.from('eleves_roster').update({ pin: nouveau }).eq('id', eleve.id);
+    if (!error) {
+      setElevesRoster(prev => prev.map(e => e.id === eleve.id ? { ...e, pin: nouveau } : e));
+      setPinRegenere(prev => ({ ...prev, [eleve.id]: nouveau }));
+    }
   }
 
   const conteneur = { padding: '32px', maxWidth: '900px', margin: '0 auto' };
@@ -355,6 +368,40 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
               ))}
             </ul>
           </details>
+        </div>
+
+        <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '20px', marginBottom: '28px' }}>
+          <h3 style={{ marginTop: 0 }}>🔑 Gestion des codes PIN</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid #E5E7EB' }}>Élève</th>
+                <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid #E5E7EB' }}>Code actuel</th>
+                <th style={{ padding: '6px', borderBottom: '1px solid #E5E7EB' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {elevesRoster.map(eleve => (
+                <tr key={eleve.id}>
+                  <td style={{ padding: '6px' }}>{eleve.nom}</td>
+                  <td style={{ padding: '6px', fontFamily: 'monospace', fontWeight: pinRegenere[eleve.id] ? 'bold' : 'normal', color: pinRegenere[eleve.id] ? '#059669' : '#374151' }}>
+                    {pinRegenere[eleve.id] || eleve.pin}
+                  </td>
+                  <td style={{ padding: '6px', textAlign: 'right' }}>
+                    <button
+                      onClick={() => regenererPin(eleve)}
+                      style={{ padding: '6px 14px', fontSize: '13px', cursor: 'pointer', background: '#1E3A8A', color: 'white', border: 'none', borderRadius: '6px' }}
+                    >
+                      Régénérer
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '10px' }}>
+            Un code régénéré s'affiche ici en vert — communique-le à l'élève, il pourra ensuite le changer lui-même depuis son écran.
+          </p>
         </div>
 
         <h3>📚 Détail par thème</h3>
