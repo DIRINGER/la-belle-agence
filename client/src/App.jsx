@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import ERPServices from './components/erp/ERPServices';
 import RevisionQuiz from './RevisionQuiz';
+import RoueOrale from './RoueOrale';
+import MonAgence from './MonAgence';
+import { lancerConfettis } from './confetti';
 
 const PIN_PROF = '2026'; // code simple pour protéger l'accès Prof et les corrections — change-le si tu veux
 
@@ -13,6 +16,8 @@ function App() {
   const [missionEnCours, setMissionEnCours]   = useState(null);
   const [afficherERP, setAfficherERP]         = useState(false);
   const [afficherRevision, setAfficherRevision] = useState(false);
+  const [afficherRoue, setAfficherRoue]       = useState(false);
+  const [afficherAgence, setAfficherAgence]   = useState(false);
 
   const [ongletMission, setOngletMission]     = useState('donnees');
   const [afficherIndice, setAfficherIndice]   = useState(false);
@@ -132,9 +137,10 @@ function App() {
     chargerReponse();
   }, [missionEnCours]);
 
-  // ERP / Révisions pour le professeur
+  // ERP / Révisions / Roue pour le professeur
   if (utilisateur === 'Christophe DIRINGER (Prof)') {
     if (afficherRevision) return <RevisionQuiz utilisateur={utilisateur} estProf={true} onRetour={() => setAfficherRevision(false)} />;
+    if (afficherRoue) return <RoueOrale onRetour={() => setAfficherRoue(false)} />;
     if (afficherERP) return <ERPServices onRetour={() => setAfficherERP(false)} />;
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -142,6 +148,7 @@ function App() {
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '30px', flexWrap: 'wrap' }}>
           <button onClick={() => setAfficherERP(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#1E3A8A', color: 'white', border: 'none', borderRadius: '8px' }}>🗂️ Accéder à l'ERP</button>
           <button onClick={() => setAfficherRevision(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#059669', color: 'white', border: 'none', borderRadius: '8px' }}>📚 Tableau de bord Révisions</button>
+          <button onClick={() => setAfficherRoue(true)} style={{ padding: '20px 30px', fontSize: '16px', cursor: 'pointer', background: '#DC2626', color: 'white', border: 'none', borderRadius: '8px' }}>🎡 Roue à l'oral</button>
         </div>
         <button onClick={() => setUtilisateur(null)} style={{ padding: '10px 20px', marginTop: '20px', cursor: 'pointer' }}>← Changer d'utilisateur</button>
       </div>
@@ -150,6 +157,7 @@ function App() {
 
   if (afficherERP) return <ERPServices onRetour={() => setAfficherERP(false)} />;
   if (afficherRevision) return <RevisionQuiz utilisateur={utilisateur} estProf={false} onRetour={() => setAfficherRevision(false)} />;
+  if (afficherAgence) return <MonAgence utilisateur={utilisateur} onRetour={() => setAfficherAgence(false)} />;
 
   const btnERP = (
     <button
@@ -178,6 +186,21 @@ function App() {
       }}
     >
       📚 Réviser
+    </button>
+  );
+
+  const btnAgence = (
+    <button
+      onClick={() => setAfficherAgence(true)}
+      style={{
+        position: 'fixed', bottom: '24px', right: '196px',
+        padding: '14px 22px', background: '#7C3AED', color: 'white',
+        border: 'none', borderRadius: '50px', cursor: 'pointer',
+        fontSize: '15px', fontWeight: '700',
+        boxShadow: '0 4px 15px rgba(124,58,237,0.4)', zIndex: 1000,
+      }}
+    >
+      🏢 Mon agence
     </button>
   );
 
@@ -271,6 +294,7 @@ function App() {
         </div>
         {btnERP}
         {btnRevision}
+        {btnAgence}
       </div>
     );
   }
@@ -297,6 +321,7 @@ function App() {
           updated_at:    new Date().toISOString(),
         }, { onConflict: 'mission_id,eleve_nom' });
       setSauvegarde(error ? 'erreur' : 'ok');
+      if (!error) lancerConfettis();
       setTimeout(() => setSauvegarde(null), 3000);
     }
 
@@ -594,6 +619,7 @@ function App() {
         </div>
         {btnERP}
         {btnRevision}
+        {btnAgence}
       </div>
     );
   }
@@ -640,6 +666,7 @@ function App() {
       )}
       {btnERP}
       {btnRevision}
+      {btnAgence}
     </div>
   );
 }

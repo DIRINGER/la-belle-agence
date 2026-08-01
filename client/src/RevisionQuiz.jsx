@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import { lancerConfettis } from './confetti';
 
 const TAILLE_SESSION = 16;
 const RATIO_RATEES = 0.8;
@@ -33,6 +34,10 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
   const [statsProf, setStatsProf] = useState(null);
   const [elevesRoster, setElevesRoster] = useState([]);
   const [pinRegenere, setPinRegenere] = useState({});
+  const [vueEnsemble, setVueEnsemble] = useState([]);
+  const [servicesVueEnsemble, setServicesVueEnsemble] = useState([]);
+  const [reponsesBrutes, setReponsesBrutes] = useState([]);
+  const [missionsBrutes, setMissionsBrutes] = useState([]);
 
   useEffect(() => {
     if (estProf) {
@@ -227,6 +232,7 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
 
         setPalierDebloque(palier || null);
         setJokerDebloque(true);
+        lancerConfettis();
       }
     }
     setChargement(false);
@@ -256,6 +262,8 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
     const { data: param } = await supabase.from('revision_parametres').select('*').eq('cle', 'nb_eleves_classe').maybeSingle();
     const { data: paliersRecompense } = await supabase.from('revision_recompense_paliers').select('*').order('seuil_pourcent', { ascending: false });
     const { data: roster } = await supabase.from('eleves_roster').select('*').order('nom');
+    const { data: missionsAll } = await supabase.from('missions').select('id,titre,profil_code');
+    const { data: reponsesAll } = await supabase.from('reponses_eleves').select('mission_id,eleve_nom,reponse_texte,lien_url,fichier_url');
 
     const debutSemaine = new Date();
     const jour = debutSemaine.getDay() || 7;
@@ -304,6 +312,38 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
     });
     const palierAtteint = (paliersRecompense || []).find(p => meilleurPourcentage >= p.seuil_pourcent) || null;
 
+    // Vue d'ensemble classe : missions rendues par élève par service
+    const missionsParService = {};
+    (missionsAll || []).forEach(m => {
+      if (!missionsParService[m.profil_code]) missionsParService[m.profil_code] = [];
+      missionsParService[m.profil_code].push(m.id);
+    });
+    const servicesAvecMissions = Object.keys(missionsParService).filter(code => missionsParService[code].length > 0);
+
+    const idsReponduParEleve = {};
+    (reponsesAll || []).forEach(r => {
+      const valide = (r.reponse_texte && r.reponse_texte.trim()) || r.lien_url || r.fichier_url;
+      if (!valide) return;
+      if (!idsReponduParEleve[r.eleve_nom]) idsReponduParEleve[r.eleve_nom] = new Set();
+      idsReponduParEleve[r.eleve_nom].add(r.mission_id);
+    });
+
+    const totalMissions = (missionsAll || []).length;
+    const ensemble = (roster || []).map(eleve => {
+      const idsRendus = idsReponduParEleve[eleve.nom] || new Set();
+      const parService = {};
+      servicesAvecMissions.forEach(code => {
+        const idsService = missionsParService[code];
+        const obtenus = idsService.filter(id => idsRendus.has(id)).length;
+        parService[code] = { obtenus, total: idsService.length };
+      });
+      return { nom: eleve.nom, parService, totalObtenus: idsRendus.size, totalMissions };
+    });
+
+    setServicesVueEnsemble(servicesAvecMissions);
+    setVueEnsemble(ensemble);
+    setMissionsBrutes(missionsAll || []);
+    setReponsesBrutes(reponsesAll || []);
     setElevesRoster(roster || []);
     setStatsProf({
       themesAvecStats,
@@ -324,6 +364,31 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
       setElevesRoster(prev => prev.map(e => e.id === eleve.id ? { ...e, pin: nouveau } : e));
       setPinRegenere(prev => ({ ...prev, [eleve.id]: nouveau }));
     }
+  }
+
+  function exporterCSV() {
+    const titreMission = {};
+    missionsBrutes.forEach(m => { titreMission[m.id] = m.titre; });
+    const lignes = [['Élève', 'Mission', 'Réponse texte', 'Lien', 'Fichier']];
+    reponsesBrutes.forEach(r => {
+      lignes.push([
+        r.eleve_nom,
+        titreMission[r.mission_id] || r.mission_id,
+        (r.reponse_texte || '').replace(/\n/g, ' ').replace(/"/g, '""'),
+        r.lien_url || '',
+        r.fichier_url || '',
+      ]);
+    });
+    const csv = lignes.map(l => l.map(c => `"${c}"`).join(';')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reponses_eleves_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   const conteneur = { padding: '32px', maxWidth: '900px', margin: '0 auto' };
@@ -368,6 +433,43 @@ export default function RevisionQuiz({ utilisateur, estProf, onRetour }) {
               ))}
             </ul>
           </details>
+        </div>
+
+        <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '20px', marginBottom: '28px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 style={{ margin: 0 }}>📊 Vue d'ensemble de la classe</h3>
+            <button onClick={exporterCSV} style={{ padding: '8px 16px', fontSize: '13px', cursor: 'pointer', background: '#1E3A8A', color: 'white', border: 'none', borderRadius: '6px' }}>
+              ⬇️ Exporter les réponses (CSV)
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto', marginTop: '14px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '6px', borderBottom: '1px solid #E5E7EB' }}>Élève</th>
+                  {servicesVueEnsemble.map(code => (
+                    <th key={code} style={{ padding: '6px', borderBottom: '1px solid #E5E7EB' }}>{code}</th>
+                  ))}
+                  <th style={{ padding: '6px', borderBottom: '1px solid #E5E7EB' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vueEnsemble.map(e => (
+                  <tr key={e.nom}>
+                    <td style={{ padding: '6px' }}>{e.nom}</td>
+                    {servicesVueEnsemble.map(code => (
+                      <td key={code} style={{ padding: '6px', textAlign: 'center' }}>
+                        {e.parService[code]?.obtenus ?? 0}/{e.parService[code]?.total ?? 0}
+                      </td>
+                    ))}
+                    <td style={{ padding: '6px', textAlign: 'center', fontWeight: '600' }}>
+                      {e.totalObtenus}/{e.totalMissions}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '20px', marginBottom: '28px' }}>
